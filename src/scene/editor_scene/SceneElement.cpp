@@ -2,6 +2,8 @@
 #include "scene/SceneContext.h"
 #include "rendering/imgui/ImGuiManager.h"
 
+#include <glm/gtx/transform.hpp>
+
 void EditorScene::SceneElement::add_imgui_edit_section(MasterRenderScene& /*render_scene*/, const SceneContext& /*scene_context*/) {
     ImGui::InputText("Name", &name, 0);
     ImGui::Spacing();
@@ -50,7 +52,6 @@ void EditorScene::LocalTransformComponent::add_local_transform_imgui_edit_sectio
     euler_rotation = glm::radians(glm::mod(euler_rotation_degrees, 360.0f));
 
     {
-        // Static also means that all [EntityElement] will share the value
         static bool lock_scale = true;
 
         glm::vec3 temp_scale = scale;
@@ -58,7 +59,6 @@ void EditorScene::LocalTransformComponent::add_local_transform_imgui_edit_sectio
             transformUpdated = true;
 
             if (lock_scale) {
-                // Assume only channel can change at a time (I think this is true based on how ImGui works?)
                 if (temp_scale.x != scale.x) {
                     if (scale.x == 0.0f) {
                         scale = glm::vec3(temp_scale.x);
@@ -94,7 +94,16 @@ void EditorScene::LocalTransformComponent::add_local_transform_imgui_edit_sectio
 }
 
 glm::mat4 EditorScene::LocalTransformComponent::calc_model_matrix() const {
-    return glm::translate(position) * glm::scale(scale);
+    glm::mat4 translation_matrix = glm::translate(position);
+
+    glm::mat4 x_rotation = glm::rotate(euler_rotation.x, glm::vec3{1.0f, 0.0f, 0.0f});
+    glm::mat4 y_rotation = glm::rotate(euler_rotation.y, glm::vec3{0.0f, 1.0f, 0.0f});
+    glm::mat4 z_rotation = glm::rotate(euler_rotation.z, glm::vec3{0.0f, 0.0f, 1.0f});
+
+    glm::mat4 rotation_matrix = z_rotation * y_rotation * x_rotation;
+    glm::mat4 scale_matrix = glm::scale(scale);
+
+    return translation_matrix * rotation_matrix * scale_matrix;
 }
 
 void EditorScene::LocalTransformComponent::update_local_transform_from_json(const json& json) {
@@ -112,14 +121,36 @@ json EditorScene::LocalTransformComponent::local_transform_into_json() const {
     }};
 }
 
-void EditorScene::LitMaterialComponent::add_material_imgui_edit_section(MasterRenderScene& /*render_scene*/, const SceneContext& /*scene_context*/) {
-    // Set this to true if the user has changed any of the material values, otherwise the changes won't be propagated
+void EditorScene::LitMaterialComponent::add_material_imgui_edit_section(MasterRenderScene& /*render_scene*/, const SceneContext& scene_context) {
     bool material_changed = false;
     ImGui::Text("Material");
 
-    // Add UI controls here
+    material_changed |= ImGui::ColorEdit3("Diffuse Tint", &material.diffuse_tint[0]);
+    ImGui::DragDisableCursor(scene_context.window);
 
+    material_changed |= ImGui::SliderFloat("Diffuse Strength", &material.diffuse_tint.a, 0.0f, 5.0f);
+    ImGui::DragDisableCursor(scene_context.window);
+
+    material_changed |= ImGui::ColorEdit3("Specular Tint", &material.specular_tint[0]);
+    ImGui::DragDisableCursor(scene_context.window);
+
+    material_changed |= ImGui::SliderFloat("Specular Strength", &material.specular_tint.a, 0.0f, 5.0f);
+    ImGui::DragDisableCursor(scene_context.window);
+
+    material_changed |= ImGui::ColorEdit3("Ambient Tint", &material.ambient_tint[0]);
+    ImGui::DragDisableCursor(scene_context.window);
+
+    material_changed |= ImGui::SliderFloat("Ambient Strength", &material.ambient_tint.a, 0.0f, 5.0f);
+    ImGui::DragDisableCursor(scene_context.window);
+
+    material_changed |= ImGui::DragFloat("Shininess", &material.shininess, 1.0f, 1.0f, 512.0f);
+    ImGui::DragDisableCursor(scene_context.window);
+
+    material_changed |= ImGui::DragFloat("Texture Scale", &material.texture_scale, 0.2f, 0.01f, 100.0f, "%.3f", ImGuiSliderFlags_Logarithmic); // added
+    ImGui::DragDisableCursor(scene_context.window); // addded
+    
     ImGui::Spacing();
+
     if (material_changed) {
         update_instance_data();
     }
@@ -131,6 +162,7 @@ void EditorScene::LitMaterialComponent::update_material_from_json(const json& js
     material.specular_tint = m["specular_tint"];
     material.ambient_tint = m["ambient_tint"];
     material.shininess = m["shininess"];
+    material.texture_scale = m["texture_scale"]; // added
 }
 
 json EditorScene::LitMaterialComponent::material_into_json() const {
@@ -139,17 +171,22 @@ json EditorScene::LitMaterialComponent::material_into_json() const {
         {"specular_tint", material.specular_tint},
         {"ambient_tint", material.ambient_tint},
         {"shininess", material.shininess},
+        {"texture_scale", material.texture_scale} // added
     }};
 }
 
-void EditorScene::EmissiveMaterialComponent::add_emissive_material_imgui_edit_section(MasterRenderScene& /*render_scene*/, const SceneContext& /*scene_context*/) {
-    // Set this to true if the user has changed any of the material values, otherwise the changes won't be propagated
+void EditorScene::EmissiveMaterialComponent::add_emissive_material_imgui_edit_section(MasterRenderScene& /*render_scene*/, const SceneContext& scene_context) {
     bool material_changed = false;
     ImGui::Text("Emissive Material");
 
-    // Add UI controls here
+    material_changed |= ImGui::ColorEdit3("Emission Tint", &material.emission_tint[0]);
+    ImGui::DragDisableCursor(scene_context.window);
+
+    material_changed |= ImGui::SliderFloat("Emission Strength", &material.emission_tint.a, 0.0f, 5.0f);
+    ImGui::DragDisableCursor(scene_context.window);
 
     ImGui::Spacing();
+
     if (material_changed) {
         update_instance_data();
     }
@@ -181,34 +218,40 @@ void EditorScene::AnimationComponent::add_animation_imgui_edit_section(MasterRen
     if (get_animation_parameters().animation_id != NONE_ANIMATION) {
         std::tie(selected_animation, ticks_per_second, duration_ticks) = animations[get_animation_parameters().animation_id];
     }
+
     if (ImGui::BeginCombo("Animation Selection", selected_animation.c_str(), 0)) {
         for (auto i = 0u; i < animations.size(); ++i) {
             const auto& animation = animations[i];
             const bool is_selected = i == get_animation_parameters().animation_id;
+
             if (ImGui::Selectable(std::get<0>(animation).c_str(), is_selected)) {
                 render_scene.animator.stop(entity);
                 get_animation_parameters().animation_id = i;
                 entity->get_animation_time_seconds() = 0.0;
             }
 
-            // Set the initial focus when opening the combo (scrolling + keyboard navigation focus)
-            if (is_selected)
+            if (is_selected) {
                 ImGui::SetItemDefaultFocus();
+            }
         }
+
         if (ImGui::Selectable("[NONE]", get_animation_parameters().animation_id == NONE_ANIMATION)) {
             render_scene.animator.stop(entity);
             get_animation_parameters().animation_id = NONE_ANIMATION;
             entity->get_animation_time_seconds() = 0.0;
         }
+
         ImGui::EndCombo();
 
         entity->get_animation_id() = get_animation_parameters().animation_id;
     }
+
     if (get_animation_parameters().animation_id != NONE_ANIMATION) {
         std::tie(selected_animation, ticks_per_second, duration_ticks) = animations[get_animation_parameters().animation_id];
 
         auto float_time = (float) entity->get_animation_time_seconds();
         auto float_duration = (float) (duration_ticks / ticks_per_second);
+
         if (ImGui::SliderFloat("Animation Time (sec)", &float_time, 0.0f, float_duration, "%.3f", ImGuiSliderFlags_NoRoundToFormat)) {
             entity->get_animation_time_seconds() = float_time;
         }
@@ -248,6 +291,7 @@ void EditorScene::AnimationComponent::add_animation_imgui_edit_section(MasterRen
         auto float_speed = (float) get_animation_parameters().speed;
         if (ImGui::SliderFloat("Speed", &float_speed, 0.0, 10.0)) {
             get_animation_parameters().speed = float_speed;
+
             if (is_playing) {
                 render_scene.animator.update_param(entity, get_animation_parameters());
             }
