@@ -1,5 +1,5 @@
 # Initialise cmake script
-cmake_minimum_required(VERSION 3.12)
+cmake_minimum_required(VERSION 3.5)
 project(cits3003_project)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -128,6 +128,7 @@ add_executable(cits3003_project
         src/scene/editor_scene/EntityElement.cpp
         src/scene/editor_scene/AnimatedEntityElement.cpp
         src/scene/editor_scene/PointLightElement.cpp
+        src/scene/editor_scene/DirectionalLightElement.cpp
         src/scene/editor_scene/GroupElement.cpp
         src/scene/editor_scene/EmissiveEntityElement.cpp
         src/scene/editor_scene/SceneElement.cpp

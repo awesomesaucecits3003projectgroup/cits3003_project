@@ -36,13 +36,9 @@ void EntityRenderer::EntityRenderer::render(const RenderScene& render_scene, con
         shader.set_instance_data(entity->instance_data);
 
         glm::vec3 position = entity->instance_data.model_matrix[3];
-        // IMPORTANT NOTE:
-        // This call has the potential to recompile the shader if the value for "NUM_PL" changes.
-        // If this where to happen for every entity, it would MASSIVELY kill performance (and possibly just not even work at all).
-        // However, in this case, consecutive get_nearest_point_lights calls WILL return the same number of items,
-        // so that issue won't happen since it only recompiles on a change.
-        // Just make sure to be careful of this kind of thing.
+
         shader.set_point_lights(light_scene.get_nearest_point_lights(position, BaseLitEntityShader::MAX_PL, 1));
+        shader.set_directional_lights(light_scene.get_directional_lights(BaseLitEntityShader::MAX_DL));
 
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, entity->render_data.diffuse_texture->get_texture_id());

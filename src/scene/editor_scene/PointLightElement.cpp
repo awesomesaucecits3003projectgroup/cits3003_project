@@ -13,7 +13,8 @@ std::unique_ptr<EditorScene::PointLightElement> EditorScene::PointLightElement::
         glm::vec3{0.0f, 1.0f, 0.0f},
         PointLight::create(
             glm::vec3{}, // Set via update_instance_data()
-            glm::vec4{1.0f}
+            glm::vec4{1.0f},
+            glm::vec3{1.0f, 0.35f, 0.16f}
         ),
         EmissiveEntityRenderer::Entity::create(
             scene_context.model_loader.load_from_file<EmissiveEntityRenderer::VertexData>("sphere.obj"),
@@ -41,6 +42,12 @@ std::unique_ptr<EditorScene::PointLightElement> EditorScene::PointLightElement::
     light_element->visible = j["visible"];
     light_element->visual_scale = j["visual_scale"];
 
+    if (j.contains("attenuation")) {
+        light_element->light->attenuation = j["attenuation"];
+    } else {
+        light_element->light->attenuation = glm::vec3{1.0f, 0.35f, 0.16f};
+    }
+
     light_element->update_instance_data();
     return light_element;
 }
@@ -49,6 +56,7 @@ json EditorScene::PointLightElement::into_json() const {
     return {
         {"position",     position},
         {"colour",       light->colour},
+        {"attenuation",  light->attenuation},
         {"visible",      visible},
         {"visual_scale", visual_scale},
     };
@@ -67,7 +75,20 @@ void EditorScene::PointLightElement::add_imgui_edit_section(MasterRenderScene& r
     ImGui::Text("Light Properties");
     transformUpdated |= ImGui::ColorEdit3("Colour", &light->colour[0]);
     ImGui::Spacing();
-    ImGui::DragFloat("Intensity", &light->colour.a, 0.01f, 0.0f, FLT_MAX);
+
+    transformUpdated |= ImGui::DragFloat("Intensity", &light->colour.a, 0.01f, 0.0f, FLT_MAX);
+    ImGui::DragDisableCursor(scene_context.window);
+
+    ImGui::Spacing();
+    ImGui::Text("Attenuation");
+
+    ImGui::DragFloat("Constant", &light->attenuation.x, 0.01f, 0.0f, FLT_MAX);
+    ImGui::DragDisableCursor(scene_context.window);
+
+    ImGui::DragFloat("Linear", &light->attenuation.y, 0.01f, 0.0f, FLT_MAX);
+    ImGui::DragDisableCursor(scene_context.window);
+
+    ImGui::DragFloat("Quadratic", &light->attenuation.z, 0.01f, 0.0f, FLT_MAX);
     ImGui::DragDisableCursor(scene_context.window);
 
     ImGui::Spacing();

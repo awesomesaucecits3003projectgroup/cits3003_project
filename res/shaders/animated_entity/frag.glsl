@@ -28,6 +28,12 @@ layout (std140) uniform PointLightArray {
 };
 #endif
 
+#if NUM_DL > 0
+layout (std140) uniform DirectionalLightArray {
+    DirectionalLightData directional_lights[NUM_DL];
+};
+#endif
+
 uniform sampler2D diffuse_texture;
 uniform sampler2D specular_map_texture;
 
@@ -42,7 +48,10 @@ void main() {
 
     LightingResult lighting_result = total_light_calculation(light_calculation_data, material
         #if NUM_PL > 0
-        ,point_lights
+        , point_lights
+        #endif
+        #if NUM_DL > 0
+        , directional_lights
         #endif
     );
     
