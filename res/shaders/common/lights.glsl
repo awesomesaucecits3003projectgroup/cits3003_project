@@ -2,6 +2,10 @@
 #define NUM_PL 0
 #endif
 
+#ifndef NUM_DL
+#define NUM_DL 0
+#endif
+
 // Material Properties
 struct Material {
     vec3 diffuse_tint;
@@ -20,6 +24,15 @@ struct LightCalculatioData {
 struct PointLightData {
     vec3 position;
     vec3 colour;
+
+    // x = constant, y = linear, z = quadratic
+    vec3 attenuation;
+};
+
+struct DirectionalLightData {
+    // Direction the light travels through the world
+    vec3 direction;
+    vec3 colour;
 };
 
 // Calculations
@@ -27,8 +40,22 @@ struct PointLightData {
 const float ambient_factor = 0.002f;
 
 // Point Lights
-void point_light_calculation(PointLightData point_light, LightCalculatioData calculation_data, float shininess, inout vec3 total_diffuse, inout vec3 total_specular, inout vec3 total_ambient) {
+void point_light_calculation(
+    PointLightData point_light,
+    LightCalculatioData calculation_data,
+    float shininess,
+    inout vec3 total_diffuse,
+    inout vec3 total_specular,
+    inout vec3 total_ambient
+) {
     vec3 ws_light_offset = point_light.position - calculation_data.ws_frag_position;
+    float distance_to_light = length(ws_light_offset);
+
+    float attenuation = 1.0f / (
+        point_light.attenuation.x +
+        point_light.attenuation.y * distance_to_light +
+        point_light.attenuation.z * distance_to_light * distance_to_light
+    );
 
     // Ambient
     vec3 ambient_component = ambient_factor * point_light.colour;
@@ -43,6 +70,36 @@ void point_light_calculation(PointLightData point_light, LightCalculatioData cal
     float specular_factor = pow(max(dot(calculation_data.ws_normal, ws_halfway_dir), 0.0f), shininess);
     vec3 specular_component = specular_factor * point_light.colour;
 
+    total_diffuse += diffuse_component * attenuation;
+    total_specular += specular_component * attenuation;
+    total_ambient += ambient_component * attenuation;
+}
+
+// Directional Lights
+void directional_light_calculation(
+    DirectionalLightData directional_light,
+    LightCalculatioData calculation_data,
+    float shininess,
+    inout vec3 total_diffuse,
+    inout vec3 total_specular,
+    inout vec3 total_ambient
+) {
+    // directional_light.direction is the direction light travels.
+    // For shading we need the direction from the fragment back toward the light source.
+    vec3 ws_light_dir = normalize(-directional_light.direction);
+
+    // Ambient
+    vec3 ambient_component = ambient_factor * directional_light.colour;
+
+    // Diffuse
+    float diffuse_factor = max(dot(ws_light_dir, calculation_data.ws_normal), 0.0f);
+    vec3 diffuse_component = diffuse_factor * directional_light.colour;
+
+    // Specular
+    vec3 ws_halfway_dir = normalize(ws_light_dir + calculation_data.ws_view_dir);
+    float specular_factor = pow(max(dot(calculation_data.ws_normal, ws_halfway_dir), 0.0f), shininess);
+    vec3 specular_component = specular_factor * directional_light.colour;
+
     total_diffuse += diffuse_component;
     total_specular += specular_component;
     total_ambient += ambient_component;
@@ -56,12 +113,16 @@ struct LightingResult {
     vec3 total_ambient;
 };
 
-LightingResult total_light_calculation(LightCalculatioData light_calculation_data, Material material
-        #if NUM_PL > 0
-        ,PointLightData point_lights[NUM_PL]
-        #endif
-    ) {
-
+LightingResult total_light_calculation(
+    LightCalculatioData light_calculation_data,
+    Material material
+    #if NUM_PL > 0
+    , PointLightData point_lights[NUM_PL]
+    #endif
+    #if NUM_DL > 0
+    , DirectionalLightData directional_lights[NUM_DL]
+    #endif
+) {
     vec3 total_diffuse = vec3(0.0f);
     vec3 total_specular = vec3(0.0f);
     vec3 total_ambient = vec3(0.0f);
@@ -72,8 +133,14 @@ LightingResult total_light_calculation(LightCalculatioData light_calculation_dat
     }
     #endif
 
-    #if NUM_PL > 0
-    total_ambient /= float(NUM_PL);
+    #if NUM_DL > 0
+    for (int i = 0; i < NUM_DL; i++) {
+        directional_light_calculation(directional_lights[i], light_calculation_data, material.shininess, total_diffuse, total_specular, total_ambient);
+    }
+    #endif
+
+    #if NUM_PL > 0 || NUM_DL > 0
+    total_ambient /= float(NUM_PL + NUM_DL);
     #endif
 
     total_diffuse *= material.diffuse_tint;
@@ -83,7 +150,12 @@ LightingResult total_light_calculation(LightCalculatioData light_calculation_dat
     return LightingResult(total_diffuse, total_specular, total_ambient);
 }
 
-vec3 resolve_textured_light_calculation(LightingResult result, sampler2D diffuse_texture, sampler2D specular_map, vec2 texture_coordinate) {
+vec3 resolve_textured_light_calculation(
+    LightingResult result,
+    sampler2D diffuse_texture,
+    sampler2D specular_map,
+    vec2 texture_coordinate
+) {
     vec3 texture_colour = texture(diffuse_texture, texture_coordinate).rgb;
     vec3 specular_map_sample = texture(specular_map, texture_coordinate).rgb;
 

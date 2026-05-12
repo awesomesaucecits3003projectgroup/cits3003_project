@@ -11,25 +11,59 @@
 struct PointLight {
     PointLight() = default;
 
-    PointLight(const glm::vec3& position, const glm::vec4& colour) :
-        position(position), colour(colour) {}
+    PointLight(const glm::vec3& position, const glm::vec4& colour, const glm::vec3& attenuation = glm::vec3{1.0f, 0.35f, 0.16f}) :
+        position(position), colour(colour), attenuation(attenuation) {}
 
     static PointLight off() {
-        return {glm::vec3{}, glm::vec4{}};
+        return {glm::vec3{}, glm::vec4{}, glm::vec3{1.0f, 0.35f, 0.16f}};
     }
 
-    static std::shared_ptr<PointLight> create(const glm::vec3& position, const glm::vec4& colour) {
-        return std::make_shared<PointLight>(position, colour);
+    static std::shared_ptr<PointLight> create(const glm::vec3& position, const glm::vec4& colour, const glm::vec3& attenuation = glm::vec3{1.0f, 0.35f, 0.16f}) {
+        return std::make_shared<PointLight>(position, colour, attenuation);
     }
 
     glm::vec3 position{};
     // Alpha components are just used to store a scalar that is applied before passing to the GPU
     glm::vec4 colour{};
 
+    // x = constant, y = linear, z = quadratic attenuation
+    glm::vec3 attenuation{1.0f, 0.35f, 0.16f};
+
     // On GPU format
     // alignas used to conform to std140 for direct binary usage with glsl
     struct Data {
         alignas(16) glm::vec3 position;
+        alignas(16) glm::vec3 colour;
+        alignas(16) glm::vec3 attenuation;
+    };
+};
+
+/// A representation of a DirectionalLight render scene element.
+/// Direction is the direction the light travels through the world.
+struct DirectionalLight {
+    DirectionalLight() = default;
+
+    DirectionalLight(const glm::vec3& direction, const glm::vec4& colour) :
+        direction(direction), colour(colour) {}
+
+    static DirectionalLight off() {
+        return {glm::vec3{0.0f, -1.0f, 0.0f}, glm::vec4{}};
+    }
+
+    static std::shared_ptr<DirectionalLight> create(const glm::vec3& direction, const glm::vec4& colour) {
+        return std::make_shared<DirectionalLight>(direction, colour);
+    }
+
+    // Direction the light travels in world space
+    glm::vec3 direction{0.0f, -1.0f, 0.0f};
+
+    // Alpha component stores intensity, not transparency
+    glm::vec4 colour{1.0f};
+
+    // On GPU format
+    // alignas used to conform to std140 for direct binary usage with glsl
+    struct Data {
+        alignas(16) glm::vec3 direction;
         alignas(16) glm::vec3 colour;
     };
 };
@@ -38,22 +72,13 @@ struct PointLight {
 /// those lights on a proximity basis, since processing an unbounded number of lights on the GPU is bad idea.
 struct LightScene {
     std::unordered_set<std::shared_ptr<PointLight>> point_lights;
+    std::unordered_set<std::shared_ptr<DirectionalLight>> directional_lights;
 
     /// Will return up to `max_count` nearest point lights to `target`.
-    /// It returns less than `max_count` if there are not that many point lights,
-    /// in which case it will end up returning all point lights.
-    ///
-    /// If a `min_count` > 0 is provided, it will provide at least that many, with filling empty
-    /// slots with a "Black" light.
-    ///
-    /// NOTE: This is VERY inefficient as is, since it currently (possibly) sorts all lights,
-    ///       then copies out up to `max_count` point lights, so is O(n log(n)) for
-    ///       n being the total number of point lights.
-    ///
-    ///       So an improvement would be to use a data structure which can accelerate this,
-    ///       as well as support incrementally getting the `k` nearest.
-    ///
     std::vector<PointLight> get_nearest_point_lights(glm::vec3 target, size_t max_count, size_t min_count = 0) const;
+
+    /// Will return up to `max_count` directional lights.
+    std::vector<DirectionalLight> get_directional_lights(size_t max_count, size_t min_count = 0) const;
 
 private:
     template<typename Light>
