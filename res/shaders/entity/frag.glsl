@@ -56,7 +56,6 @@ void main() {
         , directional_lights
         #endif
     );
-
     vec3 resolved_lighting = resolve_textured_light_calculation(
         lighting_result,
         diffuse_texture,

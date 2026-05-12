@@ -3,6 +3,8 @@
 #include "rendering/imgui/ImGuiManager.h"
 #include "scene/SceneContext.h"
 
+//float nuts = 1.0;
+
 std::unique_ptr<EditorScene::EntityElement> EditorScene::EntityElement::new_default(const SceneContext& scene_context, ElementRef parent) {
     auto rendered_entity = EntityRenderer::Entity::create(
         scene_context.model_loader.load_from_file<EntityRenderer::VertexData>("cube.obj"),
@@ -13,6 +15,7 @@ std::unique_ptr<EditorScene::EntityElement> EditorScene::EntityElement::new_defa
                 {1.0f, 1.0f, 1.0f, 1.0f},
                 {1.0f, 1.0f, 1.0f, 1.0f},
                 512.0f,
+                1.0f, // added, sets default texture_scale to be 1.0
             }
         },
         EntityRenderer::RenderData{
@@ -76,6 +79,9 @@ void EditorScene::EntityElement::add_imgui_edit_section(MasterRenderScene& rende
     scene_context.texture_loader.add_imgui_texture_selector("Diffuse Texture", rendered_entity->render_data.diffuse_texture);
     scene_context.texture_loader.add_imgui_texture_selector("Specular Map", rendered_entity->render_data.specular_map_texture, false);
     ImGui::Spacing();
+
+    //ImGui::Text("Material"); // added
+    //ImGui::DragFloat("Texture Scale", &nuts, 0.2f, 0.01f, 100.0f, "%.3f", ImGuiSliderFlags_Logarithmic); // added
 }
 
 void EditorScene::EntityElement::update_instance_data() {

@@ -149,6 +149,27 @@ void EditorScene::LitMaterialComponent::add_material_imgui_edit_section(MasterRe
     material_changed |= ImGui::DragFloat("Texture Scale", &material.texture_scale, 0.05f, 0.01f, 100.0f, "%.3f", ImGuiSliderFlags_Logarithmic);
     ImGui::DragDisableCursor(scene_context.window);
 
+    material_changed |= ImGui::SliderFloat("Diffuse Strength", &material.diffuse_tint.a, 0.0f, 5.0f);
+    ImGui::DragDisableCursor(scene_context.window);
+
+    material_changed |= ImGui::ColorEdit3("Specular Tint", &material.specular_tint[0]);
+    ImGui::DragDisableCursor(scene_context.window);
+
+    material_changed |= ImGui::SliderFloat("Specular Strength", &material.specular_tint.a, 0.0f, 5.0f);
+    ImGui::DragDisableCursor(scene_context.window);
+
+    material_changed |= ImGui::ColorEdit3("Ambient Tint", &material.ambient_tint[0]);
+    ImGui::DragDisableCursor(scene_context.window);
+
+    material_changed |= ImGui::SliderFloat("Ambient Strength", &material.ambient_tint.a, 0.0f, 5.0f);
+    ImGui::DragDisableCursor(scene_context.window);
+
+    material_changed |= ImGui::DragFloat("Shininess", &material.shininess, 1.0f, 1.0f, 512.0f);
+    ImGui::DragDisableCursor(scene_context.window);
+
+    material_changed |= ImGui::DragFloat("Texture Scale", &material.texture_scale, 0.2f, 0.01f, 100.0f, "%.3f", ImGuiSliderFlags_Logarithmic); // added
+    ImGui::DragDisableCursor(scene_context.window); // addded
+    
     ImGui::Spacing();
 
     if (material_changed) {

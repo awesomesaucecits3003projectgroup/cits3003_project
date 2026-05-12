@@ -40,6 +40,7 @@ void BasicStaticScene::open(const SceneContext& scene_context) {
                 glm::vec4(1.0f),
                 glm::vec4(1.0f),
                 128.0f,
+                1.0f, // added, sets initial texture scale to 1.0
             }
         },
         EntityRenderer::RenderData{
