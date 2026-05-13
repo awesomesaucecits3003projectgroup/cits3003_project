@@ -69,6 +69,10 @@ namespace EditorScene {
         /// A helper for switching camera mode
         void set_camera_mode(CameraMode new_camera_mode);
 
+        /// Helpers for viewport mouse picking
+        void try_select_element_from_mouse(const SceneContext& scene_context);
+        bool ray_intersects_element_bounds(const glm::vec3& ray_origin, const glm::vec3& ray_direction, const SceneElement& element, float& hit_distance) const;
+
         /// Helpers to recursively iterator down the scene tree
         void visit_children(ElementRef root, const std::function<void(SceneElement&)>& visit);
         void visit_children_and_root(ElementRef root, const std::function<void(SceneElement&)>& visit);

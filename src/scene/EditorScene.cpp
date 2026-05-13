@@ -2,6 +2,10 @@
 
 #include <tinyfiledialogs/tinyfiledialogs.h>
 
+#include <limits>
+#include <cmath>
+#include <iostream>
+
 #include "rendering/imgui/ImGuiManager.h"
 #include "rendering/cameras/PanningCamera.h"
 #include "rendering/cameras/FlyingCamera.h"
@@ -123,6 +127,24 @@ std::pair<TickResponseType, std::shared_ptr<SceneInterface>> EditorScene::Editor
         return {TickResponseType::Exit, nullptr};
     }
 
+    // Project I: left-click viewport selection.
+    static bool was_left_mouse_pressed = false;
+    bool left_mouse_pressed = scene_context.window.is_mouse_pressed(GLFW_MOUSE_BUTTON_LEFT);
+
+    if (left_mouse_pressed && !was_left_mouse_pressed) {
+        bool imgui_wants_mouse = scene_context.imgui_enabled && ImGui::GetIO().WantCaptureMouse;
+
+        std::cout << "Left click detected. ImGui wants mouse: "
+                << (imgui_wants_mouse ? "true" : "false")
+                << std::endl;
+
+        if (!imgui_wants_mouse) {
+            try_select_element_from_mouse(scene_context);
+        }
+    }
+
+was_left_mouse_pressed = left_mouse_pressed;
+
     /// If the 'V' key was pressed this tick, then cycle the camera mode
     if (scene_context.window.was_key_pressed(GLFW_KEY_V)) {
         switch (camera_mode) {
@@ -189,6 +211,181 @@ void EditorScene::EditorScene::set_camera_mode(CameraMode new_camera_mode) {
     }
     camera->load_properties(orientation);
     this->camera_mode = new_camera_mode;
+}
+
+void EditorScene::EditorScene::try_select_element_from_mouse(const SceneContext& scene_context) {
+    glm::vec2 mouse_ndc = scene_context.window.get_mouse_pos_ndc();
+
+    // Convert mouse position from clip space into view space.
+    // Use the near plane only. This avoids problems with infinite projection matrices.
+    glm::vec4 clip_position = glm::vec4(mouse_ndc.x, mouse_ndc.y, -1.0f, 1.0f);
+
+    glm::vec4 view_position = camera->get_inverse_projection_matrix() * clip_position;
+
+    if (std::abs(view_position.w) > 0.00001f) {
+        view_position /= view_position.w;
+    }
+
+    glm::vec3 view_direction = glm::normalize(glm::vec3(view_position));
+
+    // Convert direction from view space into world space.
+    glm::vec3 ray_origin = camera->get_position();
+    glm::vec3 ray_direction = glm::normalize(glm::mat3(camera->get_inverse_view_matrix()) * view_direction);
+
+    std::cout << "Mouse NDC: " << mouse_ndc.x << ", " << mouse_ndc.y << std::endl;
+    std::cout << "Ray origin: " << ray_origin.x << ", " << ray_origin.y << ", " << ray_origin.z << std::endl;
+    std::cout << "Ray direction: " << ray_direction.x << ", " << ray_direction.y << ", " << ray_direction.z << std::endl;
+
+    ElementRef closest_element = NullElementRef;
+    float closest_distance = std::numeric_limits<float>::max();
+
+    std::function<void(ElementList&)> test_elements;
+
+    test_elements = [&](ElementList& elements) {
+        for (auto iter = elements->begin(); iter != elements->end(); ++iter) {
+            SceneElement& element = **iter;
+
+            if (element.enabled && std::string(element.element_type_name()) != "Group") {
+                float hit_distance = 0.0f;
+
+                if (ray_intersects_element_bounds(ray_origin, ray_direction, element, hit_distance)) {
+                    std::cout << "Hit: " << element.name << " at distance " << hit_distance << std::endl;
+
+                    if (hit_distance >= 0.0f && hit_distance < closest_distance) {
+                        closest_distance = hit_distance;
+                        closest_element = iter;
+                    }
+                }
+            }
+
+            ElementList children = element.get_children();
+            if (children != nullptr) {
+                test_elements(children);
+            }
+        }
+    };
+
+    test_elements(scene_root);
+
+    if (!is_null(closest_element)) {
+        selected_element = closest_element;
+        std::cout << "Selected: " << (*selected_element)->name << std::endl;
+    } else {
+        std::cout << "No element hit." << std::endl;
+    }
+}
+
+bool EditorScene::EditorScene::ray_intersects_element_bounds(
+    const glm::vec3& ray_origin,
+    const glm::vec3& ray_direction,
+    const SceneElement& element,
+    float& hit_distance
+) const {
+    // Transform ray into the element's local space.
+    glm::mat4 inverse_transform = glm::inverse(element.transform);
+
+    glm::vec3 local_origin = glm::vec3(inverse_transform * glm::vec4(ray_origin, 1.0f));
+    glm::vec3 local_direction = glm::vec3(inverse_transform * glm::vec4(ray_direction, 0.0f));
+
+    // Do not normalize here. Keeping the transformed direction unnormalized gives more stable t values
+    // when the object has non-uniform scale.
+    glm::vec3 min_bounds = glm::vec3(-1.0f);
+    glm::vec3 max_bounds = glm::vec3(1.0f);
+
+    std::string model_filename = "";
+
+    // Normal entity model filename
+    if (auto* entity = dynamic_cast<const EntityElement*>(&element)) {
+        if (entity->rendered_entity->model->get_filename().has_value()) {
+            model_filename = entity->rendered_entity->model->get_filename().value();
+        }
+    }
+
+    // Animated entity model filename
+    else if (auto* animated_entity = dynamic_cast<const AnimatedEntityElement*>(&element)) {
+        if (animated_entity->rendered_entity->mesh_hierarchy->filename.has_value()) {
+            model_filename = animated_entity->rendered_entity->mesh_hierarchy->filename.value();
+        }
+    }
+
+    // Emissive entity model filename
+    else if (auto* emissive_entity = dynamic_cast<const EmissiveEntityElement*>(&element)) {
+        if (emissive_entity->rendered_entity->model->get_filename().has_value()) {
+            model_filename = emissive_entity->rendered_entity->model->get_filename().value();
+        }
+    }
+
+    // Point lights use a visual sphere scaled in update_instance_data().
+    else if (dynamic_cast<const PointLightElement*>(&element)) {
+        min_bounds = glm::vec3(-1.0f);
+        max_bounds = glm::vec3(1.0f);
+    }
+
+    // Directional light visuals are custom, so use a forgiving default box.
+    else if (dynamic_cast<const DirectionalLightElement*>(&element)) {
+        min_bounds = glm::vec3(-1.0f);
+        max_bounds = glm::vec3(1.0f);
+    }
+
+    // Set bounds from actual model file.
+    if (model_filename.find("double_plane.obj") != std::string::npos) {
+        min_bounds = glm::vec3(-1.0f, -0.001f, -1.0f);
+        max_bounds = glm::vec3( 1.0f,  0.001f,  1.0f);
+    }
+    else if (model_filename.find("plane.obj") != std::string::npos) {
+        min_bounds = glm::vec3(-1.0f, -0.001f, -1.0f);
+        max_bounds = glm::vec3( 1.0f,  0.001f,  1.0f);
+    }
+    else if (model_filename.find("crate.obj") != std::string::npos) {
+        min_bounds = glm::vec3(-0.5f, 0.0f, -0.5f);
+        max_bounds = glm::vec3( 0.5f, 1.0f,  0.5f);
+    }
+    else if (model_filename.find("cone.obj") != std::string::npos) {
+        min_bounds = glm::vec3(-0.468434f, 0.0f, -0.468434f);
+        max_bounds = glm::vec3( 0.468434f, 1.0f,  0.468434f);
+    }
+    else if (model_filename.find("cube.obj") != std::string::npos) {
+        min_bounds = glm::vec3(-1.0f, -1.0f, -1.0f);
+        max_bounds = glm::vec3( 1.0f,  1.0f,  1.0f);
+    }
+    else if (model_filename.find("sphere.obj") != std::string::npos) {
+        min_bounds = glm::vec3(-1.0f, -1.0f, -1.0f);
+        max_bounds = glm::vec3( 1.0f,  1.0f,  1.0f);
+    }
+    else if (model_filename.find("cylinder.obj") != std::string::npos) {
+        min_bounds = glm::vec3(-1.0f, -1.0f, -1.0f);
+        max_bounds = glm::vec3( 1.0f,  1.0f,  1.0f);
+    }
+
+    float t_min = 0.0f;
+    float t_max = std::numeric_limits<float>::max();
+
+    for (int axis = 0; axis < 3; ++axis) {
+        if (std::abs(local_direction[axis]) < 0.00001f) {
+            if (local_origin[axis] < min_bounds[axis] || local_origin[axis] > max_bounds[axis]) {
+                return false;
+            }
+        } else {
+            float inverse_direction = 1.0f / local_direction[axis];
+
+            float t1 = (min_bounds[axis] - local_origin[axis]) * inverse_direction;
+            float t2 = (max_bounds[axis] - local_origin[axis]) * inverse_direction;
+
+            if (t1 > t2) {
+                std::swap(t1, t2);
+            }
+
+            t_min = std::max(t_min, t1);
+            t_max = std::min(t_max, t2);
+
+            if (t_min > t_max) {
+                return false;
+            }
+        }
+    }
+
+    hit_distance = t_min;
+    return true;
 }
 
 void EditorScene::EditorScene::add_imgui_selection_editor(const SceneContext& scene_context) {

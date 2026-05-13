@@ -66,32 +66,24 @@ function(configure_lab_target TARGET_NAME)
         target_link_libraries(${TARGET_NAME} "-framework Cocoa" "-framework IOKit")
     endif()
 
-    # Copy executable post build
+    # Copy executable to project root after build.
     add_custom_command(TARGET ${TARGET_NAME}
             POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${TARGET_NAME}> ${CMAKE_SOURCE_DIR}
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:${TARGET_NAME}>" "${CMAKE_SOURCE_DIR}/$<TARGET_FILE_NAME:${TARGET_NAME}>"
     )
 
-    if (WIN32)
-        # Due to symbolic links requiring higher privileges on Windows, manually create Junctions instead
-        file(TO_NATIVE_PATH "${CMAKE_BINARY_DIR}/res" _dstResDir)
-        file(TO_NATIVE_PATH "${CMAKE_SOURCE_DIR}/res" _srcResDir)
+    # Copy res folder into build folder instead of using Windows junctions.
+    # Junctions can fail on Windows depending on folder state/path permissions.
+    add_custom_command(TARGET ${TARGET_NAME}
+            POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/res" "${CMAKE_BINARY_DIR}/res"
+    )
 
-        file(TO_NATIVE_PATH "${CMAKE_BINARY_DIR}/config" _dstConfigDir)
-        file(TO_NATIVE_PATH "${CMAKE_SOURCE_DIR}/config" _srcConfigDir)
-
-        # Link the res and config dirs into where the build puts the exe
+    # Only copy config if the project actually has a config folder.
+    if (EXISTS "${CMAKE_SOURCE_DIR}/config")
         add_custom_command(TARGET ${TARGET_NAME}
                 POST_BUILD
-                COMMAND cmd.exe /c if not exist "${_dstResDir}" mklink /J "${_dstResDir}" "${_srcResDir}"
-                COMMAND cmd.exe /c if not exist "${_dstConfigDir}" mklink /J "${_dstConfigDir}" "${_srcConfigDir}"
-        )
-    else()
-        # Link the res and config dirs into where the build puts the exe
-        add_custom_command(TARGET ${TARGET_NAME}
-                POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E create_symlink ${CMAKE_SOURCE_DIR}/res ${CMAKE_BINARY_DIR}/res
-                COMMAND ${CMAKE_COMMAND} -E create_symlink ${CMAKE_SOURCE_DIR}/config ${CMAKE_BINARY_DIR}/config
+                COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/config" "${CMAKE_BINARY_DIR}/config"
         )
     endif()
 endfunction()
