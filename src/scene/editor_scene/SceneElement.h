@@ -28,6 +28,8 @@ namespace EditorScene {
         glm::mat4 transform{1.0f};
         /// Tracks if the element is enabled or not
         bool enabled = true;
+        /// added; Tracks if the element has its selection outline visible
+        bool select_outline = true;
 
         explicit SceneElement(const ElementRef& parent, std::string name) : parent(parent), name(std::move(name)) {}
 
@@ -38,12 +40,14 @@ namespace EditorScene {
         void store_json(json& j) const {
             j["enabled"] = enabled;
             j["name"] = name;
+            j["select_outline"] = select_outline;
         }
 
         /// Helper method for loading base data
         void load_json(const json& j) {
             enabled = j["enabled"];
             name = j["name"];
+            select_outline = j["select_outline"];
         }
 
         /// Adds the editor fields for the current element, to be specialised to the specific entity

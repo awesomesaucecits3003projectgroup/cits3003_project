@@ -27,6 +27,8 @@ struct BaseLitEntityMaterial {
 
     // Texture coordinate multiplier. 1.0 means normal texture scale.
     float texture_scale = 1.0f;
+    
+    float is_selected = 0.0f;
 };
 
 struct BaseLitEntityInstanceData : public BaseEntityInstanceData {
@@ -58,6 +60,7 @@ protected:
     int ambient_tint_location{};
     int shininess_location{};
     int texture_scale_location{};
+    int is_selected_location{};
 
     static const uint POINT_LIGHT_BINDING = 0;
     static const uint DIRECTIONAL_LIGHT_BINDING = 1;

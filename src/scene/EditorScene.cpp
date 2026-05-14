@@ -48,6 +48,7 @@ void EditorScene::EditorScene::open(const SceneContext& scene_context) {
                     {1.0f, 1.0f, 1.0f, 1.0f},
                     128.0f,
                     1.0f, // added, sets initial texture scale to 1.0
+                    0.0f, // added, sets initial is_selected state to 0.0
                 }
             },
             EntityRenderer::RenderData{
@@ -213,6 +214,32 @@ void EditorScene::EditorScene::set_camera_mode(CameraMode new_camera_mode) {
     this->camera_mode = new_camera_mode;
 }
 
+/* void EditorScene::EditorScene::refresh_selection_visuals() { // added
+    std::function<void(ElementList&)> process;
+    process = [&](ElementList& elements) {
+        for (auto iter = elements->begin(); iter != elements->end(); ++iter) {
+            SceneElement& element = **iter;
+            bool selected = eq(selected_element, iter);
+            
+            // Entities
+            if (auto* entity = dynamic_cast<EntityElement*>(&element)) {
+                entity->update_instance_data(selected);
+            }
+
+            // Animated Entities (WIP)
+            else if (auto* animated = dynamic_cast<AnimatedEntityElement*>(&element)) {
+                animated->update_instance_data(selected);
+            }
+
+            auto children = element.get_children();
+            if (children != nullptr) {
+                process(children);
+            }
+        }
+    };
+    process(scene_root);
+} */
+
 void EditorScene::EditorScene::try_select_element_from_mouse(const SceneContext& scene_context) {
     glm::vec2 mouse_ndc = scene_context.window.get_mouse_pos_ndc();
 
@@ -269,8 +296,11 @@ void EditorScene::EditorScene::try_select_element_from_mouse(const SceneContext&
 
     if (!is_null(closest_element)) {
         selected_element = closest_element;
+        //refresh_selection_visuals();
         std::cout << "Selected: " << (*selected_element)->name << std::endl;
     } else {
+        selected_element = NullElementRef; // set the selected element to null if clicking on no element
+        //refresh_selection_visuals();
         std::cout << "No element hit." << std::endl;
     }
 }
@@ -420,6 +450,19 @@ void EditorScene::EditorScene::add_imgui_selection_editor(const SceneContext& sc
                         element.enabled = false;
                         element.remove_from_render_scene(render_scene);
                     }
+                });
+            }
+            // added
+            bool select_outline = (*selected_element)->select_outline;
+            if (ImGui::Checkbox("Show Selection Outline", &select_outline)) {
+                visit_children_and_root(selected_element, [select_outline, this](SceneElement& element) {
+                    if (select_outline && !element.select_outline) {
+                        element.select_outline = true;
+                        
+                    } else if (!select_outline && element.select_outline) {
+                        element.select_outline = false;
+                    }
+                    //refresh_selection_visuals();
                 });
             }
         }
