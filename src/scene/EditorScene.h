@@ -84,6 +84,10 @@ namespace EditorScene {
         /// Main save/load calls, which use the current save_path or pop-up a native file dialog
         void save_to_json_file();
         void load_from_json_file(const SceneContext& scene_context);
+
+        // added; updates the currently selected element by setting the 'is_selected' material property to be 'true' in the new entity, and 'false' in the previous entity.
+        // This is for the purpose of adding a blue highlight to the currently selected object
+        void set_selected_element(ElementRef new_selected);
     };
 }
 

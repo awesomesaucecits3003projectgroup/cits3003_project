@@ -10,6 +10,8 @@
 #include "rendering/cameras/PanningCamera.h"
 #include "rendering/cameras/FlyingCamera.h"
 
+#include "rendering/renders/shaders/BaseLitEntityShader.h"
+
 #include "editor_scene/EntityElement.h"
 #include "editor_scene/AnimatedEntityElement.h"
 #include "editor_scene/EmissiveEntityElement.h"
@@ -214,31 +216,38 @@ void EditorScene::EditorScene::set_camera_mode(CameraMode new_camera_mode) {
     this->camera_mode = new_camera_mode;
 }
 
-/* void EditorScene::EditorScene::refresh_selection_visuals() { // added
-    std::function<void(ElementList&)> process;
-    process = [&](ElementList& elements) {
-        for (auto iter = elements->begin(); iter != elements->end(); ++iter) {
-            SceneElement& element = **iter;
-            bool selected = eq(selected_element, iter);
-            
-            // Entities
-            if (auto* entity = dynamic_cast<EntityElement*>(&element)) {
-                entity->update_instance_data(selected);
-            }
+void EditorScene::EditorScene::set_selected_element(ElementRef new_selected) {
+    // TURN OFF OLD SELECTION
+    if (!is_null(selected_element)) {
+        // Normal entities
+        if (auto* old_entity = dynamic_cast<EntityElement*>((*selected_element).get())) {
+            old_entity->rendered_entity->instance_data.material.is_selected = 0.0f;
+        }
+        // Animated entities
+        else if (auto* old_animated = dynamic_cast<AnimatedEntityElement*>((*selected_element).get())) {
+            old_animated->rendered_entity->instance_data.material.is_selected = 0.0f;
+        }
+    }
 
-            // Animated Entities (WIP)
-            else if (auto* animated = dynamic_cast<AnimatedEntityElement*>(&element)) {
-                animated->update_instance_data(selected);
-            }
+    // CHANGE SELECTION
+    selected_element = new_selected;
 
-            auto children = element.get_children();
-            if (children != nullptr) {
-                process(children);
+    // TURN ON NEW SELECTION
+    if (!is_null(selected_element)) {
+        // Normal entities
+        if (auto* new_entity = dynamic_cast<EntityElement*>((*selected_element).get())) {
+            if (new_entity->select_outline) {
+                new_entity->rendered_entity->instance_data.material.is_selected = 1.0f;
             }
         }
-    };
-    process(scene_root);
-} */
+        // Animated entities
+        else if (auto* new_animated = dynamic_cast<AnimatedEntityElement*>((*selected_element).get())) {
+            if (new_animated->select_outline) {
+                new_animated->rendered_entity->instance_data.material.is_selected = 1.0f;
+            }
+        }
+    }
+}
 
 void EditorScene::EditorScene::try_select_element_from_mouse(const SceneContext& scene_context) {
     glm::vec2 mouse_ndc = scene_context.window.get_mouse_pos_ndc();
@@ -295,12 +304,10 @@ void EditorScene::EditorScene::try_select_element_from_mouse(const SceneContext&
     test_elements(scene_root);
 
     if (!is_null(closest_element)) {
-        selected_element = closest_element;
-        //refresh_selection_visuals();
+        set_selected_element(closest_element);
         std::cout << "Selected: " << (*selected_element)->name << std::endl;
     } else {
-        selected_element = NullElementRef; // set the selected element to null if clicking on no element
-        //refresh_selection_visuals();
+        set_selected_element(NullElementRef); // set the selected element to null if clicking on no element
         std::cout << "No element hit." << std::endl;
     }
 }
@@ -347,14 +354,14 @@ bool EditorScene::EditorScene::ray_intersects_element_bounds(
 
     // Point lights use a visual sphere scaled in update_instance_data().
     else if (dynamic_cast<const PointLightElement*>(&element)) {
-        min_bounds = glm::vec3(-1.0f);
-        max_bounds = glm::vec3(1.0f);
+        min_bounds = glm::vec3(-0.75f);
+        max_bounds = glm::vec3(0.75f);
     }
 
     // Directional light visuals are custom, so use a forgiving default box.
     else if (dynamic_cast<const DirectionalLightElement*>(&element)) {
-        min_bounds = glm::vec3(-1.0f);
-        max_bounds = glm::vec3(1.0f);
+        min_bounds = glm::vec3(-0.5f);
+        max_bounds = glm::vec3(0.5f);
     }
 
     // Set bounds from actual model file.
@@ -385,6 +392,10 @@ bool EditorScene::EditorScene::ray_intersects_element_bounds(
     else if (model_filename.find("cylinder.obj") != std::string::npos) {
         min_bounds = glm::vec3(-1.0f, -1.0f, -1.0f);
         max_bounds = glm::vec3( 1.0f,  1.0f,  1.0f);
+    }
+    else { // guess for custom models, by using a sphere (temporary, maybe)
+        min_bounds = glm::vec3(-1.0f);
+        max_bounds = glm::vec3( 1.0f);
     }
 
     float t_min = 0.0f;
@@ -454,16 +465,11 @@ void EditorScene::EditorScene::add_imgui_selection_editor(const SceneContext& sc
             }
             // added
             bool select_outline = (*selected_element)->select_outline;
-            if (ImGui::Checkbox("Show Selection Outline", &select_outline)) {
+            if (ImGui::Checkbox("Show Selection Highlight", &select_outline)) {
                 visit_children_and_root(selected_element, [select_outline, this](SceneElement& element) {
-                    if (select_outline && !element.select_outline) {
-                        element.select_outline = true;
-                        
-                    } else if (!select_outline && element.select_outline) {
-                        element.select_outline = false;
-                    }
-                    //refresh_selection_visuals();
+                    element.select_outline = select_outline;
                 });
+                set_selected_element(selected_element);
             }
         }
     }
@@ -637,11 +643,10 @@ void EditorScene::EditorScene::add_imgui_scene_hierarchy(const SceneContext& sce
                     }
                 }
             };
-
             process_children(scene_root);
 
             if (!is_null(new_selected)) {
-                selected_element = new_selected;
+                set_selected_element(new_selected);
 //                std::cout << "Selected: [" << (*selected_element)->get_name() << "]" << std::endl;
             }
         }

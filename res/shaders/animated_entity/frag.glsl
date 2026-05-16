@@ -23,6 +23,8 @@ uniform vec3 specular_tint;
 uniform vec3 ambient_tint;
 uniform float shininess;
 
+uniform float is_selected;
+
 // Light Data
 #if NUM_PL > 0
 layout (std140) uniform PointLightArray {
@@ -63,7 +65,7 @@ void main() {
         specular_map_texture,
         frag_in.texture_coordinate
     );
-
-    out_colour = vec4(resolved_lighting, 1.0f);
+    
+    out_colour = vec4(resolved_lighting + vec3(0.0f, 0.0f, is_selected * 0.5f), 1.0f);
     out_colour.rgb = pow(out_colour.rgb, vec3(inverse_gamma));
 }

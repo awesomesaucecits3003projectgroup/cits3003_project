@@ -16,6 +16,7 @@ std::unique_ptr<EditorScene::EntityElement> EditorScene::EntityElement::new_defa
                 {1.0f, 1.0f, 1.0f, 1.0f},
                 512.0f,
                 1.0f, // added, sets default texture_scale to be 1.0
+                0.0f, // added, sets default is_selected state to be 0.0
             }
         },
         EntityRenderer::RenderData{

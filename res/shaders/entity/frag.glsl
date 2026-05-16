@@ -65,6 +65,6 @@ void main() {
         frag_in.texture_coordinate
     );
 
-    out_colour = vec4(resolved_lighting + vec3(0.0,0.0,is_selected * 0.5), 1.0f);
+    out_colour = vec4(resolved_lighting + vec3(0.0f, 0.0f, is_selected * 0.5f), 1.0f);
     out_colour.rgb = pow(out_colour.rgb, vec3(inverse_gamma));
 }
