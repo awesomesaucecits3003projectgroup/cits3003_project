@@ -1,3 +1,6 @@
+This completed project has been tested using Windows 11  
+Developed by Caden Cannell (24221083) and Kai Latiolais (24405084)
+
 # CITS3003 Project Template 2023
 
 This is the template for the CITS3003 Project for 2023
