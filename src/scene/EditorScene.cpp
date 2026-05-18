@@ -508,7 +508,8 @@ void EditorScene::EditorScene::add_imgui_scene_hierarchy(const SceneContext& sce
                     try {
                         auto new_entity = gen.second(scene_context, parent);
                         new_entity->add_to_render_scene(render_scene);
-                        selected_element = list->insert(insert_at, std::move(new_entity));
+                        auto new_ref = list->insert(insert_at, std::move(new_entity));
+                        set_selected_element(new_ref); // added; update currently selected elem when one is created
                     } catch (const std::exception& e) {
                         std::cerr << "Error while trying to add new Entity:" << std::endl;
                         std::cerr << e.what() << std::endl;
@@ -530,7 +531,8 @@ void EditorScene::EditorScene::add_imgui_scene_hierarchy(const SceneContext& sce
                     try {
                         auto new_light = gen.second(scene_context, parent);
                         new_light->add_to_render_scene(render_scene);
-                        selected_element = list->insert(insert_at, std::move(new_light));
+                        auto new_ref = list->insert(insert_at, std::move(new_light));
+                        set_selected_element(new_ref); // added; update currently selected elem when one is created
                     } catch (const std::exception& e) {
                         std::cerr << "Error while trying to add new Light:" << std::endl;
                         std::cerr << e.what() << std::endl;
@@ -552,7 +554,8 @@ void EditorScene::EditorScene::add_imgui_scene_hierarchy(const SceneContext& sce
             );
 
             new_group->update_instance_data();
-            selected_element = list->insert(insert_at, std::move(new_group));
+            auto new_ref = list->insert(insert_at, std::move(new_group));
+            set_selected_element(new_ref); // added; set newly created group as currently selected
         }
 
         ImGui::SameLine();
