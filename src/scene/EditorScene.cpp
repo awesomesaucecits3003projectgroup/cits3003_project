@@ -598,7 +598,7 @@ void EditorScene::EditorScene::add_imgui_scene_hierarchy(const SceneContext& sce
             } else {
                 scene_root->erase(selected_element);
             }
-            selected_element = to_select;
+            set_selected_element(to_select);
         }
         ImGui::PopStyleColor(3);
 
